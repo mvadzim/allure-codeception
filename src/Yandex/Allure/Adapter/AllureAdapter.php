@@ -14,6 +14,8 @@ use Codeception\Test\Cest;
 use Codeception\Test\Gherkin;
 use Codeception\Util\Debug;
 use Codeception\Util\Locator;
+use Codeception\Module\ImageDeviationException;
+use Codeception\Step\Comment as CommentStep;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Finder\Finder;
 use Yandex\Allure\Adapter\Annotation;
@@ -36,11 +38,14 @@ use Yandex\Allure\Adapter\Model;
 use Yandex\Allure\Adapter\Model\Label;
 use Yandex\Allure\Adapter\Model\LabelType;
 use Yandex\Allure\Adapter\Model\ParameterKind;
+use Yandex\Allure\Adapter\Support\AttachmentSupport;
 use function GuzzleHttp\json_encode;
 
 const ARGUMENTS_LENGTH = 'arguments_length';
 const OUTPUT_DIRECTORY_PARAMETER = 'outputDirectory';
 const DELETE_PREVIOUS_RESULTS_PARAMETER = 'deletePreviousResults';
+const ENABLED_ATTACH_PARAMETER = 'enabledAttach';
+const STEP_SCREENSHOT_IGNORED_PARAMETER = 'stepScreenshotIgnored';
 const IGNORED_ANNOTATION_PARAMETER = 'ignoredAnnotations';
 const DEFAULT_RESULTS_DIRECTORY = 'allure-results';
 const DEFAULT_REPORT_DIRECTORY = 'allure-report';
@@ -48,6 +53,8 @@ const INITIALIZED_PARAMETER = '_initialized';
 
 class AllureAdapter extends Extension
 {
+    use AttachmentSupport;
+
     //NOTE: here we implicitly assume that PHP runs in single-threaded mode
     private $uuid;
 
@@ -80,8 +87,14 @@ class AllureAdapter extends Extension
         'coversDefaultClass', 'coversNothing', 'dataProvider', 'depends', 'expectedException',
         'expectedExceptionCode', 'expectedExceptionMessage', 'group', 'large', 'medium',
         'preserveGlobalState', 'requires', 'runTestsInSeparateProcesses', 'runInSeparateProcess',
-        'small', 'test', 'testdox', 'ticket', 'uses', 'env', 'dataprovider'
+        'small', 'test', 'testdox', 'ticket', 'uses'
     ];
+
+    private $test;
+    private $testName;
+    private $stepNumber = 1;
+    private $module;
+    private $enabledAttach = [];
 
     /**
      * Extra annotations to ignore in addition to standard PHPUnit annotations.
@@ -104,6 +117,7 @@ class AllureAdapter extends Extension
         if (is_null(Model\Provider::getOutputDirectory())) {
             Model\Provider::setOutputDirectory($outputDirectory);
         }
+        $this->enabledAttach = $this->tryGetOption(ENABLED_ATTACH_PARAMETER, []);
         $this->setOption(INITIALIZED_PARAMETER, true);
     }
 
@@ -213,6 +227,11 @@ class AllureAdapter extends Extension
 
     public function suiteBefore(SuiteEvent $suiteEvent)
     {
+        if ($this->hasModule('WebDriver')) {
+            $this->module = $this->getModule('WebDriver');
+        } elseif ($this->hasModule('PhpBrowser')) {
+            $this->module = $this->getModule('PhpBrowser');
+        }
         $suite = $suiteEvent->getSuite();
         $suiteName = $suite->getName();
         $event = new TestSuiteStartedEvent($suiteName);
@@ -254,6 +273,9 @@ class AllureAdapter extends Extension
     public function testStart(TestEvent $testEvent)
     {
         $test = $testEvent->getTest();
+        $this->test = $test;
+        $this->testName = $test->getMetadata()->getName();
+
         $testName = $this->buildTestName($test);
         $title = empty($test->getFeature()) ? $test->getName() : mb_strstr($test->getFeature() . "|", "|", true);
         if (!is_null($test->getMetadata()->getCurrent('example')) && array_key_exists('wantTo', $test->getMetadata()->getCurrent('example'))) {
@@ -344,6 +366,7 @@ class AllureAdapter extends Extension
     {
         $event = new TestCaseBrokenEvent();
         $e = $failEvent->getFail();
+        $this->AddAttachForFailTest($failEvent);
         $message = mb_convert_encoding($e->getMessage(), 'UTF-8', 'auto');
         $this->getLifecycle()->fire($event->withException($e)->withMessage($message));
     }
@@ -355,6 +378,7 @@ class AllureAdapter extends Extension
     {
         $event = new TestCaseFailedEvent();
         $e = $failEvent->getFail();
+        $this->AddAttachForFailTest($failEvent);
         $message = mb_convert_encoding($e->getMessage(), 'UTF-8', 'auto');
         $this->getLifecycle()->fire($event->withException($e)->withMessage($message));
     }
@@ -366,6 +390,7 @@ class AllureAdapter extends Extension
     {
         $event = new TestCasePendingEvent();
         $e = $failEvent->getFail();
+        $this->AddAttachForFailTest($failEvent);
         $message = mb_convert_encoding($e->getMessage(), 'UTF-8', 'auto');
         $this->getLifecycle()->fire($event->withException($e)->withMessage($message));
     }
@@ -383,6 +408,7 @@ class AllureAdapter extends Extension
 
     public function testEnd()
     {
+        $this->stepNumber = 1;
         $this->getLifecycle()->fire(new TestCaseFinishedEvent());
     }
 
@@ -401,8 +427,35 @@ class AllureAdapter extends Extension
         $this->getLifecycle()->fire(new StepStartedEvent($stepName));
 }
 
-    public function stepAfter()
+    /**
+     * @param StepEvent $e
+     */
+    public function stepAfter(StepEvent $e)
     {
+        if
+        (
+            in_array('stepScreenshot', $this->enabledAttach) &&
+            $this->hasModule('WebDriver') &&
+            !$e->getStep() instanceof CommentStep &&
+            !$this->isStepIgnored($e->getStep())
+        ) {
+            $screenshotPath = $this->getOutputDirectory() . DIRECTORY_SEPARATOR . $this->testName . 'step' . $this->stepNumber . '-' . rand(1, 9999) . '.png';
+            $this->module->_saveScreenshot($screenshotPath);
+            $this->addAttachment($screenshotPath, 'step screenshot', 'image/png');
+            if (file_exists($screenshotPath)) {
+                unlink($screenshotPath);
+            }
+        }
+
+        if (in_array('stepBrowserLog', $this->enabledAttach)) {
+            $browserLog = $this->module->webDriver->manage()->getLog('browser'); // type: client, driver,  browser, server
+            $browserLogAttachment = $this->formatBrowserLog($browserLog);
+            if ($browserLogAttachment) {
+                $this->addAttachment($browserLogAttachment, 'step browser error', 'text/html');
+
+            }
+        }
+        $this->stepNumber++;
         $this->getLifecycle()->fire(new StepFinishedEvent());
     }
 
@@ -540,5 +593,57 @@ class AllureAdapter extends Extension
     protected function formatClassName($classname)
     {
         return trim($classname, "\\");
+    }
+
+    /**
+     * @param Step $step
+     *
+     * @return bool
+     */
+    protected function isStepIgnored($step)
+    {
+        foreach ($this->tryGetOption(STEP_SCREENSHOT_IGNORED_PARAMETER, []) as $stepPattern) {
+            $stepRegexp = '/^' . str_replace('*', '.*?', $stepPattern) . '$/i';
+            if (preg_match($stepRegexp, $step->getAction())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function AddAttachForFailTest($fail)
+    {
+        if (
+            in_array('failedStepPageSource', $this->enabledAttach) &&
+            (
+                $this->hasModule('WebDriver') ||
+                $this->hasModule('PhpBrowser') &&
+                !is_null($this->module->client) &&
+                !is_null($this->module->client->getInternalResponse())
+            )
+        ) {
+            $htmlPageSnapshotPath = $this->getOutputDirectory() . DIRECTORY_SEPARATOR . $this->testName . '-' . rand(1, 99999) . '.html';
+            $this->module->_savePageSource($htmlPageSnapshotPath);
+            $this->addAttachment($htmlPageSnapshotPath, 'html snapshot', 'text/html');
+            if (file_exists($htmlPageSnapshotPath)) {
+                unlink($htmlPageSnapshotPath);
+            }
+        }
+        if (in_array('visualceptionScreenshot', $this->enabledAttach) && $fail instanceof \Codeception\Module\ImageDeviationException) {
+            $this->addAttachment($fail->getDeviationImage(), 'diff', 'image/png');
+            $this->addAttachment($fail->getCurrentImage(), 'actual', 'image/png');
+            $this->addAttachment($fail->getExpectedImage(), 'expected', 'image/png');
+        }
+    }
+
+    protected function formatBrowserLog(array $log)
+    {
+        if (!empty($log) && array_key_exists('message', $log[0])) {
+            $formatLog = '<ul><li>' . implode("<br/><li>", array_column($log, 'message')) . '</ul>';
+            return $formatLog;
+        } else {
+            return false;
+        }
     }
 }
