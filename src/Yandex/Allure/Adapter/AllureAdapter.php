@@ -80,7 +80,7 @@ class AllureAdapter extends Extension
         'coversDefaultClass', 'coversNothing', 'dataProvider', 'depends', 'expectedException',
         'expectedExceptionCode', 'expectedExceptionMessage', 'group', 'large', 'medium',
         'preserveGlobalState', 'requires', 'runTestsInSeparateProcesses', 'runInSeparateProcess',
-        'small', 'test', 'testdox', 'ticket', 'uses',
+        'small', 'test', 'testdox', 'ticket', 'uses', 'env', 'dataprovider'
     ];
 
     /**
@@ -255,7 +255,13 @@ class AllureAdapter extends Extension
     {
         $test = $testEvent->getTest();
         $testName = $this->buildTestName($test);
-        $event = new TestCaseStartedEvent($this->uuid, $testName);        
+        $title = empty($test->getFeature()) ? $test->getName() : mb_strstr($test->getFeature() . "|", "|", true);
+        if (!is_null($test->getMetadata()->getCurrent('example')) && array_key_exists('wantTo', $test->getMetadata()->getCurrent('example'))) {
+            $comment = $test->getMetadata()->getCurrent('example')['wantTo'];
+            $title = $title . ' > ' . $comment;
+        }
+        $event = new TestCaseStartedEvent($this->uuid, $testName);
+        $event->setTitle($title);
         if ($test instanceof Cest) {
             $className = get_class($test->getTestClass());
             $annotations = [];
@@ -338,7 +344,7 @@ class AllureAdapter extends Extension
     {
         $event = new TestCaseBrokenEvent();
         $e = $failEvent->getFail();
-        $message = $e->getMessage();
+        $message = mb_convert_encoding($e->getMessage(), 'UTF-8', 'auto');
         $this->getLifecycle()->fire($event->withException($e)->withMessage($message));
     }
 
@@ -349,7 +355,7 @@ class AllureAdapter extends Extension
     {
         $event = new TestCaseFailedEvent();
         $e = $failEvent->getFail();
-        $message = $e->getMessage();
+        $message = mb_convert_encoding($e->getMessage(), 'UTF-8', 'auto');
         $this->getLifecycle()->fire($event->withException($e)->withMessage($message));
     }
 
@@ -360,7 +366,7 @@ class AllureAdapter extends Extension
     {
         $event = new TestCasePendingEvent();
         $e = $failEvent->getFail();
-        $message = $e->getMessage();
+        $message = mb_convert_encoding($e->getMessage(), 'UTF-8', 'auto');
         $this->getLifecycle()->fire($event->withException($e)->withMessage($message));
     }
 
@@ -371,7 +377,7 @@ class AllureAdapter extends Extension
     {
         $event = new TestCaseCanceledEvent();
         $e = $failEvent->getFail();
-        $message = $e->getMessage();
+        $message = mb_convert_encoding($e->getMessage(), 'UTF-8', 'auto');
         $this->getLifecycle()->fire($event->withException($e)->withMessage($message));
     }
 
@@ -382,21 +388,15 @@ class AllureAdapter extends Extension
 
     public function stepBefore(StepEvent $stepEvent)
     {
-        $argumentsLength = $this->tryGetOption(ARGUMENTS_LENGTH, 200);
+        $argumentsLength = $this->tryGetOption(ARGUMENTS_LENGTH, 400);
 
-        $stepAction = $stepEvent->getStep()->getHumanizedActionWithoutArguments();
-        $stepArgs = $stepEvent->getStep()->getArgumentsAsString($argumentsLength);
+        $stepAction = $stepEvent->getStep()->toString($argumentsLength);
 
         if (!trim($stepAction)) {
             $stepAction = $stepEvent->getStep()->getMetaStep()->getHumanizedActionWithoutArguments();
-            $stepArgs = $stepEvent->getStep()->getMetaStep()->getArgumentsAsString($argumentsLength);
         }
 
-        $stepName = $stepAction . ' ' . $stepArgs;
-
-        //Workaround for https://github.com/allure-framework/allure-core/issues/442
-        $stepName = str_replace('.', '•', $stepName);
-
+        $stepName = $stepAction;
         $this->emptyStep = false;
         $this->getLifecycle()->fire(new StepStartedEvent($stepName));
 }
