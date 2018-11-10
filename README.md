@@ -38,5 +38,7 @@ extensions:
             stepScreenshotIgnored:
                 - 'grab*'
                 - '*cookie'
+            visualceptionTestGroups:
+                - visual
 ```
 

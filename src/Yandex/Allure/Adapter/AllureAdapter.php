@@ -46,6 +46,7 @@ const OUTPUT_DIRECTORY_PARAMETER = 'outputDirectory';
 const DELETE_PREVIOUS_RESULTS_PARAMETER = 'deletePreviousResults';
 const ENABLED_ATTACH_PARAMETER = 'enabledAttach';
 const STEP_SCREENSHOT_IGNORED_PARAMETER = 'stepScreenshotIgnored';
+const VISUAL_CEPTION_TEST_GROUPS_PARAMETER = 'visualceptionTestGroups';
 const IGNORED_ANNOTATION_PARAMETER = 'ignoredAnnotations';
 const DEFAULT_RESULTS_DIRECTORY = 'allure-results';
 const DEFAULT_REPORT_DIRECTORY = 'allure-report';
@@ -261,7 +262,7 @@ class AllureAdapter extends Extension
                 $this->testInvocations[$testFullName] = 0;
             }
             $currentExample = $test->getMetadata()->getCurrent();
-            if ($currentExample && isset($currentExample['example']) ) {
+            if ($currentExample && isset($currentExample['example'])) {
                 $testName .= ' with data set #' . $this->testInvocations[$testFullName];
             }
         } else if($test instanceof Gherkin) {
@@ -327,6 +328,16 @@ class AllureAdapter extends Extension
                 );
                 $annotationManager->updateTestCaseEvent($event);
             }
+        }
+        if ($this->hasModule('VisualCeption') &&
+            in_array('visualceptionScreenshot', $this->enabledAttach) &&
+            !empty(array_intersect(
+                $this->tryGetOption(VISUAL_CEPTION_TEST_GROUPS_PARAMETER, []),
+                $test->getMetadata()->getGroups()
+            ))
+        ) {
+            $label[] = new Label('testType', 'screenshotDiff');
+            $event->setLabels(array_merge($event->getLabels(), $label));
         }
         $this->getLifecycle()->fire($event);
 
@@ -630,10 +641,10 @@ class AllureAdapter extends Extension
                 unlink($htmlPageSnapshotPath);
             }
         }
-        if (in_array('visualceptionScreenshot', $this->enabledAttach) && $fail instanceof \Codeception\Module\ImageDeviationException) {
-            $this->addAttachment($fail->getDeviationImage(), 'diff', 'image/png');
-            $this->addAttachment($fail->getCurrentImage(), 'actual', 'image/png');
-            $this->addAttachment($fail->getExpectedImage(), 'expected', 'image/png');
+        if (in_array('visualceptionScreenshot', $this->enabledAttach) && $fail->getFail() instanceof \Codeception\Module\ImageDeviationException) {
+            $this->addAttachment($fail->getFail()->getDeviationImage(), 'diff', 'image/png');
+            $this->addAttachment($fail->getFail()->getCurrentImage(), 'actual', 'image/png');
+            $this->addAttachment($fail->getFail()->getExpectedImage(), 'expected', 'image/png');
         }
     }
 
