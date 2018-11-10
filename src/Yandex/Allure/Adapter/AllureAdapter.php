@@ -457,12 +457,13 @@ class AllureAdapter extends Extension
                 unlink($screenshotPath);
             }
         }
-
-        if (in_array('stepBrowserLog', $this->enabledAttach)) {
-            $browserLog = $this->module->webDriver->manage()->getLog('browser'); // type: client, driver,  browser, server
-            $browserLogAttachment = $this->formatBrowserLog($browserLog);
-            if ($browserLogAttachment) {
-                $this->addAttachment($browserLogAttachment, 'step browser error', 'text/html');
+        if (in_array('stepBrowserLog', $this->enabledAttach) && $this->hasModule('WebDriver')) {
+            $browserName = $this->module->webDriver->getCapabilities()->getBrowserName();
+            if ('firefox' !== $browserName) { // https://github.com/mozilla/geckodriver/issues/330
+                $browserLog = $this->module->webDriver->manage()->getLog('browser'); // type: client, driver,  browser, server
+                $browserLogAttachment = $this->formatBrowserLog($browserLog);
+                if ($browserLogAttachment) {
+                    $this->addAttachment($browserLogAttachment, 'step browser error', 'text/html');
 
             }
         }

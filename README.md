@@ -32,13 +32,14 @@ extensions:
                 - dataprovider
             enabledAttach:
                 - stepScreenshot
-                - stepBrowserLog
+                - stepBrowserLog # Not work in firefox, phpbrowser
                 - failedStepPageSource
-                - visualceptionScreenshot
+                - visualceptionScreenshot # Attach actual.png, expected.png, diff.png* 
             stepScreenshotIgnored:
                 - 'grab*'
                 - '*cookie'
-            visualceptionTestGroups:
+            visualceptionTestGroups: # Enable screen-diff-plugin* for groups 
                 - visual
 ```
 
+* [screen-diff-plugin](https://github.com/allure-framework/allure2/tree/master/plugins/screen-diff-plugin)
