@@ -467,6 +467,9 @@ class AllureAdapter extends Extension
 
                 }
             }
+            if($e->getStep()->hasFailed()){
+                $this->lifecycle->getStepStorage()->getLast()->setStatus('failed');
+            }
             $this->stepNumber++;
             $this->getLifecycle()->fire(new StepFinishedEvent());
         }
