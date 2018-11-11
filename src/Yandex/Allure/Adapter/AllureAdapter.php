@@ -467,12 +467,18 @@ class AllureAdapter extends Extension
 
                 }
             }
-            if($e->getStep()->hasFailed()){
-                $this->lifecycle->getStepStorage()->getLast()->setStatus('failed');
-            }
-            $this->stepNumber++;
-            $this->getLifecycle()->fire(new StepFinishedEvent());
         }
+        $stepArguments = $e->getStep()->getArgumentsAsString();
+        $regExp = '/(http|https)\:\/\/[a-zA-Z0-9\-\.]+\.[5a-zA-Z]{2,5}(\/\S*)?/';
+        if (preg_match_all($regExp, $stepArguments, $urls) > 0) {
+            $uri = implode("\n\n", $urls[0]);
+            $this->addAttachment($uri, 'uri-list', 'text/uri-list');
+        }
+        if ($e->getStep()->hasFailed()) {
+            $this->lifecycle->getStepStorage()->getLast()->setStatus('failed');
+        }
+        $this->stepNumber++;
+        $this->getLifecycle()->fire(new StepFinishedEvent());
     }
 
     /**
