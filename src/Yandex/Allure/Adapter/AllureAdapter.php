@@ -465,12 +465,12 @@ class AllureAdapter extends Extension
                 if ($browserLogAttachment) {
                     $this->addAttachment($browserLogAttachment, 'step browser error', 'text/html');
 
+                }
             }
+            $this->stepNumber++;
+            $this->getLifecycle()->fire(new StepFinishedEvent());
         }
-        $this->stepNumber++;
-        $this->getLifecycle()->fire(new StepFinishedEvent());
     }
-
 
     /**
      * @return Allure
