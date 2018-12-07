@@ -96,6 +96,7 @@ class AllureAdapter extends Extension
     private $stepNumber = 1;
     private $module;
     private $enabledAttach = [];
+    private $lastRootStep;
 
     /**
      * Extra annotations to ignore in addition to standard PHPUnit annotations.
@@ -375,6 +376,7 @@ class AllureAdapter extends Extension
      */
     public function testError(FailEvent $failEvent)
     {
+        $this->tryToFireRootStepFinishedEvent();
         $event = new TestCaseBrokenEvent();
         $e = $failEvent->getFail();
         $this->AddAttachForFailTest($failEvent);
@@ -387,6 +389,7 @@ class AllureAdapter extends Extension
      */
     public function testFail(FailEvent $failEvent)
     {
+        $this->tryToFireRootStepFinishedEvent();
         $event = new TestCaseFailedEvent();
         $e = $failEvent->getFail();
         $this->AddAttachForFailTest($failEvent);
@@ -399,6 +402,7 @@ class AllureAdapter extends Extension
      */
     public function testIncomplete(FailEvent $failEvent)
     {
+        $this->tryToFireRootStepFinishedEvent();
         $event = new TestCasePendingEvent();
         $e = $failEvent->getFail();
         $this->AddAttachForFailTest($failEvent);
@@ -411,6 +415,7 @@ class AllureAdapter extends Extension
      */
     public function testSkipped(FailEvent $failEvent)
     {
+        $this->tryToFireRootStepFinishedEvent();
         $event = new TestCaseCanceledEvent();
         $e = $failEvent->getFail();
         $message = mb_convert_encoding($e->getMessage(), 'UTF-8', 'auto');
@@ -419,22 +424,40 @@ class AllureAdapter extends Extension
 
     public function testEnd()
     {
+        $this->tryToFireRootStepFinishedEvent();
         $this->stepNumber = 1;
         $this->getLifecycle()->fire(new TestCaseFinishedEvent());
     }
 
-    public function stepBefore(StepEvent $stepEvent)
+    public function stepBefore(StepEvent $e)
     {
-        $argumentsLength = $this->tryGetOption(ARGUMENTS_LENGTH, 400);
+        $argumentsLength = $this->tryGetOption(ARGUMENTS_LENGTH, 300);
 
-        $stepAction = $stepEvent->getStep()->toString($argumentsLength);
+        $step = $e->getStep();
 
+        if (!empty($step->getMetaStep())) {
+            $rootStepName = $step->getMetaStep()->toString($argumentsLength);
+
+            if (empty($this->lastRootStep) || $rootStepName !== $this->lastRootStep->getName()) {
+                if (!empty($this->lastRootStep)
+                    && $rootStepName !== $this->lastRootStep->getName()
+                ) {
+                    $this->getLifecycle()->fire(new StepFinishedEvent());
+                }
+                $this->getLifecycle()->fire(new StepStartedEvent($rootStepName));
+                $this->lastRootStep = $this->getLifecycle()->getStepStorage()->getLast();
+            }
+        } elseif (empty($step->getMetaStep()) && !empty($this->lastRootStep)) {
+            $this->getLifecycle()->fire(new StepFinishedEvent());
+            $this->lastRootStep = null;
+        }
+
+        $stepAction = $e->getStep()->toString($argumentsLength);
         if (!trim($stepAction)) {
-            $stepAction = $stepEvent->getStep()->getMetaStep()->getHumanizedActionWithoutArguments();
+            $stepAction = $e->getStep()->getMetaStep()->getHumanizedActionWithoutArguments();
         }
 
         $stepName = $stepAction;
-        $this->emptyStep = false;
         $this->getLifecycle()->fire(new StepStartedEvent($stepName));
 }
 
@@ -468,14 +491,12 @@ class AllureAdapter extends Extension
                 }
             }
         }
-        $stepArguments = $e->getStep()->getArgumentsAsString();
-        $regExp = '/(http|https)\:\/\/[a-zA-Z0-9\-\.]+\.[5a-zA-Z]{2,5}(\/\S*)?/';
-        if (preg_match_all($regExp, $stepArguments, $urls) > 0) {
-            $uri = implode("\n\n", $urls[0]);
-            $this->addAttachment($uri, 'uri-list', 'text/uri-list');
-        }
         if ($e->getStep()->hasFailed()) {
             $this->lifecycle->getStepStorage()->getLast()->setStatus('failed');
+        }
+        if (!empty($this->lastRootStep) && empty($e->getStep()->getMetaStep())) {
+            $this->getLifecycle()->fire(new StepFinishedEvent());
+            $this->lastRootStep = null;
         }
         $this->stepNumber++;
         $this->getLifecycle()->fire(new StepFinishedEvent());
@@ -665,6 +686,15 @@ class AllureAdapter extends Extension
             return $formatLog;
         } else {
             return false;
+        }
+    }
+
+    private function tryToFireRootStepFinishedEvent()
+    {
+        if (!empty($this->lastRootStep)) {
+            $this->lastRootStep->setStatus('failed');
+            $this->getLifecycle()->fire(new StepFinishedEvent());
+            $this->lastRootStep = null;
         }
     }
 }
