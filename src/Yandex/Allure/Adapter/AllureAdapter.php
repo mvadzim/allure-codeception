@@ -38,6 +38,8 @@ use Yandex\Allure\Adapter\Model;
 use Yandex\Allure\Adapter\Model\Label;
 use Yandex\Allure\Adapter\Model\LabelType;
 use Yandex\Allure\Adapter\Model\ParameterKind;
+use Yandex\Allure\Adapter\Model\Status;
+use Yandex\Allure\Adapter\Model\Attachment;
 use Yandex\Allure\Adapter\Support\AttachmentSupport;
 use function GuzzleHttp\json_encode;
 
@@ -46,7 +48,6 @@ const OUTPUT_DIRECTORY_PARAMETER = 'outputDirectory';
 const DELETE_PREVIOUS_RESULTS_PARAMETER = 'deletePreviousResults';
 const ENABLED_ATTACH_PARAMETER = 'enabledAttach';
 const STEP_SCREENSHOT_IGNORED_PARAMETER = 'stepScreenshotIgnored';
-const VISUAL_CEPTION_TEST_GROUPS_PARAMETER = 'visualceptionTestGroups';
 const IGNORED_ANNOTATION_PARAMETER = 'ignoredAnnotations';
 const DEFAULT_RESULTS_DIRECTORY = 'allure-results';
 const DEFAULT_REPORT_DIRECTORY = 'allure-report';
@@ -330,16 +331,6 @@ class AllureAdapter extends Extension
                 $annotationManager->updateTestCaseEvent($event);
             }
         }
-        if ($this->hasModule('VisualCeption') &&
-            in_array('visualceptionScreenshot', $this->enabledAttach) &&
-            !empty(array_intersect(
-                $this->tryGetOption(VISUAL_CEPTION_TEST_GROUPS_PARAMETER, []),
-                $test->getMetadata()->getGroups()
-            ))
-        ) {
-            $label[] = new Label('testType', 'screenshotDiff');
-            $event->setLabels(array_merge($event->getLabels(), $label));
-        }
         $this->getLifecycle()->fire($event);
 
         if ($test instanceof Cest) {
@@ -376,7 +367,6 @@ class AllureAdapter extends Extension
      */
     public function testError(FailEvent $failEvent)
     {
-        $this->tryToFireRootStepFinishedEvent();
         $event = new TestCaseBrokenEvent();
         $e = $failEvent->getFail();
         $this->AddAttachForFailTest($failEvent);
@@ -389,7 +379,6 @@ class AllureAdapter extends Extension
      */
     public function testFail(FailEvent $failEvent)
     {
-        $this->tryToFireRootStepFinishedEvent();
         $event = new TestCaseFailedEvent();
         $e = $failEvent->getFail();
         $this->AddAttachForFailTest($failEvent);
@@ -402,7 +391,7 @@ class AllureAdapter extends Extension
      */
     public function testIncomplete(FailEvent $failEvent)
     {
-        $this->tryToFireRootStepFinishedEvent();
+
         $event = new TestCasePendingEvent();
         $e = $failEvent->getFail();
         $this->AddAttachForFailTest($failEvent);
@@ -415,7 +404,7 @@ class AllureAdapter extends Extension
      */
     public function testSkipped(FailEvent $failEvent)
     {
-        $this->tryToFireRootStepFinishedEvent();
+
         $event = new TestCaseCanceledEvent();
         $e = $failEvent->getFail();
         $message = mb_convert_encoding($e->getMessage(), 'UTF-8', 'auto');
@@ -424,7 +413,10 @@ class AllureAdapter extends Extension
 
     public function testEnd()
     {
-        $this->tryToFireRootStepFinishedEvent();
+        if ($this->lastRootStep) {
+            $this->getLifecycle()->fire(new StepFinishedEvent());
+            $this->lastRootStep = null;
+        }
         $this->stepNumber = 1;
         $this->getLifecycle()->fire(new TestCaseFinishedEvent());
     }
@@ -434,30 +426,21 @@ class AllureAdapter extends Extension
         $argumentsLength = $this->tryGetOption(ARGUMENTS_LENGTH, 300);
 
         $step = $e->getStep();
-
-        if (!empty($step->getMetaStep())) {
+        if ($step->getMetaStep()) {
             $rootStepName = $step->getMetaStep()->toString($argumentsLength);
-
-            if (empty($this->lastRootStep) || $rootStepName !== $this->lastRootStep->getName()) {
-                if (!empty($this->lastRootStep)
-                    && $rootStepName !== $this->lastRootStep->getName()
-                ) {
+            if (!$this->lastRootStep || $rootStepName !== $this->lastRootStep->getName()) {
+                if ($this->lastRootStep && $rootStepName !== $this->lastRootStep->getName()) {
                     $this->getLifecycle()->fire(new StepFinishedEvent());
                 }
                 $this->getLifecycle()->fire(new StepStartedEvent($rootStepName));
                 $this->lastRootStep = $this->getLifecycle()->getStepStorage()->getLast();
             }
-        } elseif (empty($step->getMetaStep()) && !empty($this->lastRootStep)) {
+
+        } elseif (!$step->getMetaStep() && $this->lastRootStep) {
             $this->getLifecycle()->fire(new StepFinishedEvent());
             $this->lastRootStep = null;
         }
-
-        $stepAction = $e->getStep()->toString($argumentsLength);
-        if (!trim($stepAction)) {
-            $stepAction = $e->getStep()->getMetaStep()->getHumanizedActionWithoutArguments();
-        }
-
-        $stepName = $stepAction;
+        $stepName = $step->toString($argumentsLength);
         $this->getLifecycle()->fire(new StepStartedEvent($stepName));
 }
 
@@ -466,12 +449,13 @@ class AllureAdapter extends Extension
      */
     public function stepAfter(StepEvent $e)
     {
+        $step = $e->getStep();
         if
         (
             in_array('stepScreenshot', $this->enabledAttach) &&
             $this->hasModule('WebDriver') &&
-            !$e->getStep() instanceof CommentStep &&
-            !$this->isStepIgnored($e->getStep())
+            !$step instanceof CommentStep &&
+            !$this->isStepIgnored($step)
         ) {
             $screenshotPath = $this->getOutputDirectory() . DIRECTORY_SEPARATOR . $this->testName . 'step' . $this->stepNumber . '-' . rand(1, 9999) . '.png';
             $this->module->_saveScreenshot($screenshotPath);
@@ -491,10 +475,13 @@ class AllureAdapter extends Extension
                 }
             }
         }
-        if ($e->getStep()->hasFailed()) {
-            $this->lifecycle->getStepStorage()->getLast()->setStatus('failed');
+        if ($step->hasFailed()) {
+            $this->getLifecycle()->getStepStorage()->getLast()->setStatus(Status::FAILED);
+            if ($this->lastRootStep) {
+                $this->lastRootStep->setStatus(Status::FAILED);
+            }
         }
-        if (!empty($this->lastRootStep) && empty($e->getStep()->getMetaStep())) {
+        if ($this->lastRootStep && !$step->getMetaStep()) {
             $this->getLifecycle()->fire(new StepFinishedEvent());
             $this->lastRootStep = null;
         }
@@ -673,9 +660,11 @@ class AllureAdapter extends Extension
             }
         }
         if (in_array('visualceptionScreenshot', $this->enabledAttach) && $fail->getFail() instanceof \Codeception\Module\ImageDeviationException) {
-            $this->addAttachment($fail->getFail()->getDeviationImage(), 'diff', 'image/png');
-            $this->addAttachment($fail->getFail()->getCurrentImage(), 'actual', 'image/png');
-            $this->addAttachment($fail->getFail()->getExpectedImage(), 'expected', 'image/png');
+            $testStorage = $this->getLifecycle()->getTestCaseStorage()->get();
+            $testStorage->addAttachment(new Attachment('diff', $fail->getFail()->getDeviationImage(), 'image/png'));
+            $testStorage->addAttachment(new Attachment('actual', $fail->getFail()->getCurrentImage(), 'image/png'));
+            $testStorage->addAttachment(new Attachment('expected', $fail->getFail()->getExpectedImage(), 'image/png'));
+            $testStorage->addLabel(new Label('testType', 'screenshotDiff'));
         }
     }
 
@@ -686,15 +675,6 @@ class AllureAdapter extends Extension
             return $formatLog;
         } else {
             return false;
-        }
-    }
-
-    private function tryToFireRootStepFinishedEvent()
-    {
-        if (!empty($this->lastRootStep)) {
-            $this->lastRootStep->setStatus('failed');
-            $this->getLifecycle()->fire(new StepFinishedEvent());
-            $this->lastRootStep = null;
         }
     }
 }

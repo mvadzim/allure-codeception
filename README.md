@@ -39,8 +39,6 @@ extensions:
                 - 'grab*'
                 - '*cookie'
                 - '*api*'
-            visualceptionTestGroups: # Enable screen-diff-plugin for groups 
-                - visual
 ```
 
  
