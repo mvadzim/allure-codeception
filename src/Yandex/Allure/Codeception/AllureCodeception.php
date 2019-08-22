@@ -1,14 +1,15 @@
 <?php
-namespace Yandex\Allure\Adapter;
+namespace Yandex\Allure\Codeception;
 
+use Codeception\Codecept;
 use Codeception\Configuration;
+use Codeception\Extension;
 use Codeception\Event\FailEvent;
 use Codeception\Event\StepEvent;
 use Codeception\Event\SuiteEvent;
 use Codeception\Event\TestEvent;
 use Codeception\Events;
 use Codeception\Exception\ConfigurationException;
-use Codeception\Platform\Extension;
 use Codeception\Test\Cept;
 use Codeception\Test\Cest;
 use Codeception\Test\Gherkin;
@@ -18,6 +19,8 @@ use Codeception\Module\ImageDeviationException;
 use Codeception\Step\Comment as CommentStep;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Finder\Finder;
+use Yandex\Allure\Adapter\Allure;
+use Yandex\Allure\Adapter\Event\AddParameterEvent;
 use Yandex\Allure\Adapter\Annotation;
 use Yandex\Allure\Adapter\Annotation\Description;
 use Yandex\Allure\Adapter\Annotation\Features;
@@ -53,7 +56,7 @@ const DEFAULT_RESULTS_DIRECTORY = 'allure-results';
 const DEFAULT_REPORT_DIRECTORY = 'allure-report';
 const INITIALIZED_PARAMETER = '_initialized';
 
-class AllureAdapter extends Extension
+class AllureCodeception extends Extension
 {
     use AttachmentSupport;
 
@@ -80,7 +83,7 @@ class AllureAdapter extends Extension
 
     /**
      * Annotations that should be ignored by the annotaions parser (especially PHPUnit annotations).
-     * 
+     *
      * @var array
      */
     private $ignoredAnnotations = [
@@ -101,7 +104,7 @@ class AllureAdapter extends Extension
 
     /**
      * Extra annotations to ignore in addition to standard PHPUnit annotations.
-     * 
+     *
      * @param array $ignoredAnnotations
      */
     public function _initialize(array $ignoredAnnotations = [])
@@ -156,7 +159,7 @@ class AllureAdapter extends Extension
     {
         if (array_key_exists($optionKey, $this->config)) {
             return $this->config[$optionKey];
-        } 
+        }
         return $defaultValue;
     }
 
@@ -302,20 +305,20 @@ class AllureAdapter extends Extension
             $featureTags = $test->getFeatureNode()->getTags();
             $scenarioTags = $test->getScenarioNode()->getTags();
             $event->setLabels(
-                    array_map(
-                            function ($a) {
-                                return new Label($a, LabelType::FEATURE);
-                            },
-                            array_merge($featureTags, $scenarioTags)
-                        )
-                );
+                array_map(
+                    function ($a) {
+                        return new Label($a, LabelType::FEATURE);
+                    },
+                    array_merge($featureTags, $scenarioTags)
+                )
+            );
         } else if ($test instanceof Cept) {
             $annotations = $this->getCeptAnnotations($test);
             if (count($annotations) > 0) {
                 $annotationManager = new Annotation\AnnotationManager($annotations);
                 $annotationManager->updateTestCaseEvent($event);
             }
-        } else if ($test instanceof \PHPUnit_Framework_TestCase) {
+        } else if ($test instanceof \PHPUnit\Framework\TestCase) {
             $methodName = $this->methodName = $test->getName(false);
             $className = get_class($test);
             if (class_exists($className, false)) {
@@ -337,12 +340,12 @@ class AllureAdapter extends Extension
             $currentExample = $test->getMetadata()->getCurrent();
             if ($currentExample && isset($currentExample['example']) ) {
                 foreach ($currentExample['example'] as $name => $param) {
-                    $paramEvent = new Event\AddParameterEvent(
-                            $name, $this->stringifyArgument($param), ParameterKind::ARGUMENT);
+                    $paramEvent = new AddParameterEvent(
+                        $name, $this->stringifyArgument($param), ParameterKind::ARGUMENT);
                     $this->getLifecycle()->fire($paramEvent);
                 }
             }
-        } else if ($test instanceof \PHPUnit_Framework_TestCase) {
+        } else if ($test instanceof \PHPUnit\Framework\TestCase) {
             if ($test->usesDataProvider()) {
                 $method = new \ReflectionMethod(get_class($test), 'getProvidedData');
                 $method->setAccessible(true);
@@ -350,12 +353,12 @@ class AllureAdapter extends Extension
                 $paramNames = $testMethod->getParameters();
                 foreach ($method->invoke($test) as $key => $param) {
                     $paramName = array_shift($paramNames);
-                    $paramEvent = new Event\AddParameterEvent(
-                            is_null($paramName)
-                                ? $key
-                                : $paramName->getName(),
-                            $this->stringifyArgument($param),
-                            ParameterKind::ARGUMENT);
+                    $paramEvent = new AddParameterEvent(
+                        is_null($paramName)
+                            ? $key
+                            : $paramName->getName(),
+                        $this->stringifyArgument($param),
+                        ParameterKind::ARGUMENT);
                     $this->getLifecycle()->fire($paramEvent);
                 }
             }
@@ -411,8 +414,16 @@ class AllureAdapter extends Extension
         $this->getLifecycle()->fire($event->withException($e)->withMessage($message));
     }
 
-    public function testEnd()
+    public function testEnd(TestEvent $testEvent)
     {
+        // attachments supported since Codeception 3.0
+        if (version_compare(Codecept::VERSION, '3.0.0') > -1) {
+            $artifacts = $testEvent->getTest()->getMetadata()->getReports();
+            $testCaseStorage = $this->getLifecycle()->getTestCaseStorage()->get();
+            foreach ($artifacts as $name => $artifact) {
+                $testCaseStorage->addAttachment(new Attachment($name, $artifact, null));
+            }
+        }
         if ($this->lastRootStep) {
             $this->getLifecycle()->fire(new StepFinishedEvent());
             $this->lastRootStep = null;
@@ -442,7 +453,7 @@ class AllureAdapter extends Extension
         }
         $stepName = $step->toString($argumentsLength);
         $this->getLifecycle()->fire(new StepStartedEvent($stepName));
-}
+    }
 
     /**
      * @param StepEvent $e
@@ -593,7 +604,7 @@ class AllureAdapter extends Extension
             foreach ($argument as $key => $value) {
                 if (is_object($value)) {
                     $argument[$key] = $this->getClassName($value);
-}
+                }
             }
         } elseif (is_object($argument)) {
             if (method_exists($argument, '__toString')) {
