@@ -99,6 +99,7 @@ class AllureCodeception extends Extension
     private $testName;
     private $stepNumber = 1;
     private $module;
+    private $previousInnerBrowserResponse;
     private $enabledAttach = [];
     private $lastRootStep;
 
@@ -233,10 +234,14 @@ class AllureCodeception extends Extension
 
     public function suiteBefore(SuiteEvent $suiteEvent)
     {
-        if ($this->hasModule('WebDriver')) {
-            $this->module = $this->getModule('WebDriver');
-        } elseif ($this->hasModule('PhpBrowser')) {
-            $this->module = $this->getModule('PhpBrowser');
+        try {
+            if ($this->hasModule('WebDriver')) {
+                $this->module = $this->getModule('WebDriver');
+            } elseif ($this->hasModule('PhpBrowser')) {
+                $this->module = $this->getModule('PhpBrowser');
+            }
+        } catch (\Codeception\Exception\ModuleException $e) {
+            \PHPUnit\Framework\Assert::fail($e->getMessage());
         }
         $suite = $suiteEvent->getSuite();
         $suiteName = $suite->getName();
@@ -278,6 +283,9 @@ class AllureCodeception extends Extension
 
     public function testStart(TestEvent $testEvent)
     {
+        if ($this->hasModule('PhpBrowser') && !is_null($this->module->client)) {
+            $this->module->client->getHistory()->clear();
+        }
         $test = $testEvent->getTest();
         $this->test = $test;
         $this->testName = $test->getMetadata()->getName();
@@ -484,6 +492,15 @@ class AllureCodeception extends Extension
                     $this->addAttachment($browserLogAttachment, 'step browser error', 'text/html');
 
                 }
+            }
+        }
+        if ($this->hasModule('PhpBrowser') && !is_null($this->module->client) && !$this->module->client->getHistory()->isEmpty()) {
+            $requestObject = $this->module->client->getRequest();
+            $responseObject = $this->module->client->getResponse();
+            $lastInnerBrowserResponse = ['requestObject' => $requestObject, 'responseObject' => $responseObject];
+            if ($lastInnerBrowserResponse !== $this->previousInnerBrowserResponse) {
+                $this->previousInnerBrowserResponse = $lastInnerBrowserResponse;
+                $this->addAttachment(require('InnerBrowserAttachTemplate.php'), 'Response (' . $responseObject->getStatus() . ')', 'text/html');
             }
         }
         if ($step->hasFailed()) {
