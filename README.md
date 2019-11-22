@@ -9,15 +9,16 @@ In order to use this adapter you need to add a new dependency to your **composer
 {
   "require": {
     "mvadzim/allure-codeception": "dev-master"
-  },
-  "repositories": [
-    {
-      "type": "git",
-      "url": "https://github.com/mvadzim/allure-codeception"
-    }
-  ]
+  }
 }
 ```
+
+or
+
+```
+composer require mvadzim/allure-codeception:dev-master
+```
+
 To enable this adapter in Codeception tests simply put it in "enabled" extensions section of **codeception.yml**:
 ```yaml
 extensions:
