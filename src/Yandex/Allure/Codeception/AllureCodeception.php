@@ -262,18 +262,20 @@ class AllureCodeception extends Extension
     }
 
     private $testInvocations = array();
-    private function buildTestName($test) {
+    private function buildTestName($test){
         $testName = $test->getName();
+        $testFullName = '';
         if ($test instanceof Cest) {
             $testFullName = get_class($test->getTestClass()) . '::' . $testName;
-            if(isset($this->testInvocations[$testFullName])) {
+            $testName = $testFullName;
+            if (isset($this->testInvocations[$testFullName])) {
                 $this->testInvocations[$testFullName]++;
             } else {
                 $this->testInvocations[$testFullName] = 0;
             }
             $currentExample = $test->getMetadata()->getCurrent();
             if ($currentExample && isset($currentExample['example'])) {
-                $testName .= ' with data set #' . $this->testInvocations[$testFullName];
+                $testName = $testFullName . ' with data set #' . $this->testInvocations[$testFullName];
             }
         } else if($test instanceof Gherkin) {
             $testName = $test->getMetadata()->getFeature();
