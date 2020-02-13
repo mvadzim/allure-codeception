@@ -505,7 +505,7 @@ class AllureCodeception extends Extension
             $requestObject = $this->module->client->getRequest();
             $responseObject = $this->module->client->getResponse();
             $lastInnerBrowserResponse = ['requestObject' => $requestObject, 'responseObject' => $responseObject];
-            if ($lastInnerBrowserResponse !== $this->previousInnerBrowserResponse) {
+            if ($responseObject && $lastInnerBrowserResponse !== $this->previousInnerBrowserResponse) {
                 $this->previousInnerBrowserResponse = $lastInnerBrowserResponse;
                 $this->addAttachment(require('InnerBrowserAttachTemplate.php'), 'Response (' . $responseObject->getStatus() . ')', 'text/html');
             }
