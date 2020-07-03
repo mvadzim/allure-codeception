@@ -293,7 +293,7 @@ class AllureCodeception extends Extension
         $this->testName = $test->getMetadata()->getName();
 
         $testName = $this->buildTestName($test);
-        $title = empty($test->getFeature()) ? $test->getName() : mb_strstr($test->getFeature() . "|", "|", true);
+        $title = method_exists($test, 'getFeature') && $test->getFeature() ? mb_strstr($test->getFeature() . "|", "|", true) : $test->getName();
         if (!is_null($test->getMetadata()->getCurrent('example')) && array_key_exists('wantTo', $test->getMetadata()->getCurrent('example'))) {
             $comment = $test->getMetadata()->getCurrent('example')['wantTo'];
             $title = $title . ' > ' . $comment;
