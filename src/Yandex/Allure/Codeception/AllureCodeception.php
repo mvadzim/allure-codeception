@@ -44,7 +44,6 @@ use Yandex\Allure\Adapter\Model\ParameterKind;
 use Yandex\Allure\Adapter\Model\Status;
 use Yandex\Allure\Adapter\Model\Attachment;
 use Yandex\Allure\Adapter\Support\AttachmentSupport;
-use function GuzzleHttp\json_encode;
 
 const ARGUMENTS_LENGTH = 'arguments_length';
 const OUTPUT_DIRECTORY_PARAMETER = 'outputDirectory';
