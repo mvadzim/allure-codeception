@@ -68,7 +68,7 @@ return '
             <tbody>
             <tr class="table-primary">
                 <th nowrap>Status code</th>
-                <th colspan="2">' . $responseObject->getStatus() . '</th>
+                <th colspan="2">' . $responseObject->getStatusCode() . '</th>
             </tr>
             <tr>
                 <th colspan="3" nowrap>Headers</th>
