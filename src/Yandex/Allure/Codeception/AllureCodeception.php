@@ -55,6 +55,7 @@ const DEFAULT_RESULTS_DIRECTORY = 'allure-results';
 const DEFAULT_REPORT_DIRECTORY = 'allure-report';
 const INITIALIZED_PARAMETER = '_initialized';
 
+
 class AllureCodeception extends Extension
 {
     use AttachmentSupport;
@@ -509,7 +510,7 @@ class AllureCodeception extends Extension
             $lastInnerBrowserResponse = ['requestObject' => $requestObject, 'responseObject' => $responseObject];
             if ($responseObject && $lastInnerBrowserResponse !== $this->previousInnerBrowserResponse) {
                 $this->previousInnerBrowserResponse = $lastInnerBrowserResponse;
-                $this->addAttachment(require('InnerBrowserAttachTemplate.php'), 'Response (' . $responseObject->getStatus() . ')', 'text/html');
+                $this->addAttachment(require('InnerBrowserAttachTemplate.php'), 'Response (' . $responseObject->getStatusCode() . ')', 'text/html');
             }
         }
         if ($step->hasFailed()) {
