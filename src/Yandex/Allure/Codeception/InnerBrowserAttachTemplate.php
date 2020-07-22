@@ -3,8 +3,17 @@ $printTable = function ($aarray) {
     $result = '';
     if ($aarray) {
         foreach ($aarray as $key => $value) {
-            $value = is_array($value) ? implode("\n", $value) : var_export($value, true);
-            $result .= '<tr><td nowrap>' . $key . ':</td><td colspan="2"><pre>' . $value . '</pre></td></tr>';
+            $printValue = '';
+            if (is_array($value)) {
+                foreach ($value as $val) {
+                    $printValue .= is_array($val) ? json_encode($val, JSON_UNESCAPED_UNICODE) . "\n" : (string)$val . "\n";
+                }
+            } elseif (is_scalar($value) || is_null($value)) {
+                $printValue = (string)$value;
+            } else {
+                $printValue = var_export($value, true);
+            }
+            $result .= '<tr><td nowrap>' . $key . ':</td><td colspan="2"><pre>' . $printValue . '</pre></td></tr>';
         }
     }
     return $result;
