@@ -56,7 +56,7 @@ return '
                 <tr>
                     <th colspan="3" nowrap>Parameters</th>
                 </tr>
-' . $printTable($@requestObject->getParameters()) . '
+' . $printTable(@$requestObject->getParameters()) . '
                 <tr>
                     <th colspan="3" nowrap>Files</th>
                 </tr>
