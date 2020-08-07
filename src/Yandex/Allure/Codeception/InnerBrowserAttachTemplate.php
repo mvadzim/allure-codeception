@@ -43,32 +43,32 @@ return '
             <tbody>
                 <tr class="table-primary">
                     <th colspan="3">
-                        <pre><code class="http"><b>' . $requestObject->getMethod() . '</b> ' . $requestObject->getUri() . '</code></pre>
+                        <pre><code class="http"><b>' . @$requestObject->getMethod() . '</b> ' . @$requestObject->getUri() . '</code></pre>
                     </th>
                 </tr>
                 <tr>
                     <th nowrap>Body</th>
                     <td colspan="2">
-                        <pre><code>' . htmlspecialchars($requestObject->getContent()) . '</code></pre>
+                        <pre><code>' . @htmlspecialchars($requestObject->getContent()) . '</code></pre>
                     </td>
                 </tr>
 
                 <tr>
                     <th colspan="3" nowrap>Parameters</th>
                 </tr>
-' . $printTable($requestObject->getParameters()) . '
+' . $printTable($@requestObject->getParameters()) . '
                 <tr>
                     <th colspan="3" nowrap>Files</th>
                 </tr>
-' . $printTable($requestObject->getFiles()) . '
+' . $printTable(@$requestObject->getFiles()) . '
                 <tr>
                     <th colspan="3" nowrap>Server</th>
                 </tr>
-' . $printTable($requestObject->getServer()) . '
+' . $printTable(@$requestObject->getServer()) . '
                 <tr>
                     <th colspan="3">Cookies</th>
                 </tr>
-' . $printTable($requestObject->getCookies()) . '
+' . $printTable(@$requestObject->getCookies()) . '
             </tbody>
         </table>
 
@@ -77,16 +77,16 @@ return '
             <tbody>
             <tr class="table-primary">
                 <th nowrap>Status code</th>
-                <th colspan="2">' . $responseObject->getStatusCode() . '</th>
+                <th colspan="2">' . @$responseObject->getStatusCode() . '</th>
             </tr>
             <tr>
                 <th colspan="3" nowrap>Headers</th>
             </tr>
-' . $printTable($responseObject->getHeaders()) . '
+' . $printTable(@$responseObject->getHeaders()) . '
             <tr>
                 <th nowrap>Body</th>
                 <td colspan="2">
-                    <pre><code>' . htmlspecialchars($responseObject->getContent()) . '</code></pre>
+                    <pre><code>' . @htmlspecialchars($responseObject->getContent()) . '</code></pre>
                 </td>
             </tr>
         </tbody>
