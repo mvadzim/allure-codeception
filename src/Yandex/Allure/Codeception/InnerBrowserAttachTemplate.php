@@ -1,8 +1,8 @@
 <?php
-$printTable = function ($aarray) {
-    $result = '';
-    if ($aarray) {
-        foreach ($aarray as $key => $value) {
+$formatForOutput = function ($output) {
+    $formatOutput = '';
+    if (is_array($output)) {
+        foreach ($output as $key => $value) {
             $printValue = '';
             if (is_array($value)) {
                 foreach ($value as $val) {
@@ -13,11 +13,38 @@ $printTable = function ($aarray) {
             } else {
                 $printValue = var_export($value, true);
             }
-            $result .= '<tr><td nowrap>' . $key . ':</td><td colspan="2"><pre>' . $printValue . '</pre></td></tr>';
+            $formatOutput .= '<tr><td nowrap>' . $key . ':</td><td colspan="2"><pre>' . $printValue . '</pre></td></tr>';
         }
+    } elseif (is_scalar($output)) {
+        $formatOutput = (string)$output;
+    } elseif ($output) {
+        $formatOutput = var_export($output, true);
     }
-    return $result;
+    return $formatOutput;
 };
+
+if (!$responseObject) {
+    return 'Error. $responseObject not set!';
+}
+
+$requestMethod = method_exists($requestObject, 'getMethod') ? $requestObject->getMethod() : 'Error. Method "getMethod" not exist!';
+$requestUri = method_exists($requestObject, 'getUri') ? $requestObject->getUri() : 'Error. Method "getUri" not exist!';
+if (method_exists($responseObject, 'getStatusCode')) {
+    $responseStatusCode = $responseObject->getStatusCode();
+} elseif (method_exists($responseObject, 'getStatus')) {
+    $responseStatusCode = $responseObject->getStatus();
+} else {
+    $responseStatusCode = 'Error. Method "getStatusCode" and "getStatus" not exist!';
+}
+$requestContent = method_exists($requestObject, 'getContent') ? htmlspecialchars($requestObject->getContent()) : 'Error. Method "getContent" not exist!';
+$requestParams = method_exists($requestObject, 'getParameters') ? $requestObject->getParameters() : 'Error. Method "getParameters" not exist!';
+$requestFiles = method_exists($requestObject, 'getFiles') ? $requestObject->getFiles() : 'Error. Method "getFiles" not exist!';
+$requestServer = method_exists($requestObject, 'getServer') ? $requestObject->getServer() : 'Error. Method "getServer" not exist!';
+$requestCookies = method_exists($requestObject, 'getCookies') ? $requestObject->getCookies() : 'Error. Method "getCookies" not exist!';
+$responseHeaders = method_exists($responseObject, 'getHeaders') ? $responseObject->getHeaders() : 'Error. Method "getHeaders" not exist!';
+$responseContent = method_exists($responseObject, 'getContent') ? htmlspecialchars($responseObject->getContent()) : 'Error. Method "getContent" not exist!';
+
+
 return '
 <html>
         <head>
@@ -43,32 +70,32 @@ return '
             <tbody>
                 <tr class="table-primary">
                     <th colspan="3">
-                        <pre><code class="http"><b>' . @$requestObject->getMethod() . '</b> ' . @$requestObject->getUri() . '</code></pre>
+                        <pre><code class="http"><b>' . $requestMethod . '</b> ' . $requestUri . '</code></pre>
                     </th>
                 </tr>
                 <tr>
                     <th nowrap>Body</th>
                     <td colspan="2">
-                        <pre><code>' . @htmlspecialchars($requestObject->getContent()) . '</code></pre>
+                        <pre><code>' . $requestContent . '</code></pre>
                     </td>
                 </tr>
 
                 <tr>
                     <th colspan="3" nowrap>Parameters</th>
                 </tr>
-' . $printTable(@$requestObject->getParameters()) . '
+' . $formatForOutput($requestParams) . '
                 <tr>
                     <th colspan="3" nowrap>Files</th>
                 </tr>
-' . $printTable(@$requestObject->getFiles()) . '
+' . $formatForOutput($requestFiles) . '
                 <tr>
                     <th colspan="3" nowrap>Server</th>
                 </tr>
-' . $printTable(@$requestObject->getServer()) . '
+' . $formatForOutput($requestServer) . '
                 <tr>
                     <th colspan="3">Cookies</th>
                 </tr>
-' . $printTable(@$requestObject->getCookies()) . '
+' . $formatForOutput($requestCookies) . '
             </tbody>
         </table>
 
@@ -77,16 +104,16 @@ return '
             <tbody>
             <tr class="table-primary">
                 <th nowrap>Status code</th>
-                <th colspan="2">' . @$responseObject->getStatusCode() . '</th>
+                <th colspan="2">' . $responseStatusCode . '</th>
             </tr>
             <tr>
                 <th colspan="3" nowrap>Headers</th>
             </tr>
-' . $printTable(@$responseObject->getHeaders()) . '
+' . $formatForOutput($responseHeaders) . '
             <tr>
                 <th nowrap>Body</th>
                 <td colspan="2">
-                    <pre><code>' . @htmlspecialchars($responseObject->getContent()) . '</code></pre>
+                    <pre><code>' . $responseContent . '</code></pre>
                 </td>
             </tr>
         </tbody>
