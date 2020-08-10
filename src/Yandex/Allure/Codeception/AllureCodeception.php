@@ -1,4 +1,5 @@
 <?php
+
 namespace Yandex\Allure\Codeception;
 
 use Codeception\Codecept;
@@ -150,8 +151,8 @@ class AllureCodeception extends Extension
     /**
      * Retrieves option or returns default value.
      *
-     * @param string $optionKey    Configuration option key.
-     * @param mixed  $defaultValue Value to return in case option isn't set.
+     * @param string $optionKey Configuration option key.
+     * @param mixed $defaultValue Value to return in case option isn't set.
      *
      * @return mixed Option value.
      * @since 0.1.0
@@ -170,9 +171,9 @@ class AllureCodeception extends Extension
      *
      * @param string $optionKey Configuration option key.
      *
+     * @return mixed Option value.
      * @throws ConfigurationException Thrown if option can't be retrieved.
      *
-     * @return mixed Option value.
      * @since 0.1.0
      */
     private function getOption($optionKey)
@@ -188,11 +189,11 @@ class AllureCodeception extends Extension
     /**
      * Returns output directory.
      *
+     * @return string Absolute path to output directory.
      * @throws ConfigurationException Thrown if there is Codeception-wide
      *                                problem with output directory
      *                                configuration.
      *
-     * @return string Absolute path to output directory.
      * @since 0.1.0
      */
     private function getOutputDirectory()
@@ -213,7 +214,7 @@ class AllureCodeception extends Extension
      * up (if corresponding argument has been set to true).
      *
      * @param string $outputDirectory
-     * @param bool   $deletePreviousResults Whether to delete previous results
+     * @param bool $deletePreviousResults Whether to delete previous results
      *                                      or keep 'em.
      *
      * @since 0.1.0
@@ -221,7 +222,8 @@ class AllureCodeception extends Extension
     private function prepareOutputDirectory(
         $outputDirectory,
         $deletePreviousResults = false
-    ) {
+    )
+    {
         $filesystem = new Filesystem;
         $filesystem->mkdir($outputDirectory, 0775);
         $initialized = $this->tryGetOption(INITIALIZED_PARAMETER, false);
@@ -262,7 +264,9 @@ class AllureCodeception extends Extension
     }
 
     private $testInvocations = array();
-    private function buildTestName($test){
+
+    private function buildTestName($test)
+    {
         $testName = $test->getName();
         $testFullName = '';
         if ($test instanceof Cest) {
@@ -277,7 +281,7 @@ class AllureCodeception extends Extension
             if ($currentExample && isset($currentExample['example'])) {
                 $testName = $testFullName . ' with data set #' . $this->testInvocations[$testFullName];
             }
-        } else if($test instanceof Gherkin) {
+        } else if ($test instanceof Gherkin) {
             $testName = $test->getMetadata()->getFeature();
         }
         return $testName;
@@ -294,13 +298,13 @@ class AllureCodeception extends Extension
 
         $testName = $this->buildTestName($test);
         $title = method_exists($test, 'getFeature') && $test->getFeature() ? mb_strstr($test->getFeature() . "|", "|", true) : $test->getName();
-        
+
         @$example = $test->getMetadata()->getCurrent('example');
         if ($example) {
             @$exampleTitle = $example['wantTo'] ?: $example['setting']['description'];
             $title = $exampleTitle ?: $title;
         }
-        
+
         $event = new TestCaseStartedEvent($this->uuid, $testName);
         $event->setTitle($title);
         if ($test instanceof Cest) {
@@ -314,7 +318,7 @@ class AllureCodeception extends Extension
             if (class_exists($className, false)) {
                 $annotations = array_merge($annotations, Annotation\AnnotationProvider::getClassAnnotations($className));
             }
-            if (method_exists($className, $test->getName())){
+            if (method_exists($className, $test->getName())) {
                 $annotations = array_merge($annotations, Annotation\AnnotationProvider::getMethodAnnotations($className, $test->getName()));
             }
             $annotationManager = new Annotation\AnnotationManager($annotations);
@@ -356,7 +360,7 @@ class AllureCodeception extends Extension
 
         if ($test instanceof Cest) {
             $currentExample = $test->getMetadata()->getCurrent();
-            if ($currentExample && isset($currentExample['example']) ) {
+            if ($currentExample && isset($currentExample['example'])) {
                 foreach ($currentExample['example'] as $name => $param) {
                     $paramEvent = new AddParameterEvent(
                         $name, $this->stringifyArgument($param), ParameterKind::ARGUMENT);
@@ -505,12 +509,20 @@ class AllureCodeception extends Extension
             }
         }
         if ($this->hasModule('PhpBrowser') && !is_null($this->module->client) && !$this->module->client->getHistory()->isEmpty()) {
-            $requestObject = $this->module->client->getRequest();
-            $responseObject = $this->module->client->getResponse();
+            @$requestObject = $this->module->client->getRequest();
+            @$responseObject = $this->module->client->getResponse();
             $lastInnerBrowserResponse = ['requestObject' => $requestObject, 'responseObject' => $responseObject];
-            if ($responseObject && $lastInnerBrowserResponse !== $this->previousInnerBrowserResponse) {
+            if ($requestObject && $responseObject && $lastInnerBrowserResponse !== $this->previousInnerBrowserResponse) {
                 $this->previousInnerBrowserResponse = $lastInnerBrowserResponse;
-                $this->addAttachment(require('InnerBrowserAttachTemplate.php'), 'Response (' . $responseObject->getStatusCode() . ')', 'text/html');
+                $responseStatusCode = method_exists($responseObject, 'getStatusCode') ? $responseObject->getStatusCode() : false;
+                if (method_exists($responseObject, 'getStatusCode')) {
+                    $responseStatusCode = $responseObject->getStatusCode();
+                } elseif (method_exists($responseObject, 'getStatus')) {
+                    $responseStatusCode = $responseObject->getStatus();
+                } else {
+                    $responseStatusCode = 'Error. Method "getStatusCode" and "getStatus" not exist!';
+                }
+                $this->addAttachment(require('InnerBrowserAttachTemplate.php'), 'Response (' . $responseStatusCode . ')', 'text/html');
             }
         }
         if ($step->hasFailed()) {
@@ -532,7 +544,7 @@ class AllureCodeception extends Extension
      */
     public function getLifecycle()
     {
-        if (!isset($this->lifecycle)){
+        if (!isset($this->lifecycle)) {
             $this->lifecycle = Allure::lifecycle();
         }
         return $this->lifecycle;
@@ -553,20 +565,20 @@ class AllureCodeception extends Extension
         $tokens = token_get_all($test->getSourceCode());
         $comments = array();
         $annotations = [];
-        foreach($tokens as $token) {
-            if($token[0] == T_DOC_COMMENT || $token[0] == T_COMMENT) {
+        foreach ($tokens as $token) {
+            if ($token[0] == T_DOC_COMMENT || $token[0] == T_COMMENT) {
                 $comments[] = $token[1];
             }
         }
-        foreach($comments as $comment) {
-            $lines = preg_split ('/$\R?^/m', $comment);
-            foreach($lines as $line) {
+        foreach ($comments as $comment) {
+            $lines = preg_split('/$\R?^/m', $comment);
+            foreach ($lines as $line) {
                 $output = [];
                 if (preg_match('/\*\s\@(.*)\((.*)\)/', $line, $output) > 0) {
                     if ($output[1] == "Features") {
                         $feature = new Features();
                         $features = $this->splitAnnotationContent($output[2]);
-                        foreach($features as $featureName) {
+                        foreach ($features as $featureName) {
                             $feature->featureNames[] = $featureName;
                         }
                         $annotations[get_class($feature)] = $feature;
@@ -583,19 +595,19 @@ class AllureCodeception extends Extension
                     } else if ($output[1] == 'Stories') {
                         $stories = $this->splitAnnotationContent($output[2]);
                         $story = new Stories();
-                        foreach($stories as $storyName) {
+                        foreach ($stories as $storyName) {
                             $story->stories[] = $storyName;
                         }
                         $annotations[get_class($story)] = $story;
                     } else if ($output[1] == 'Issues') {
                         $issues = $this->splitAnnotationContent($output[2]);
                         $issue = new Issues();
-                        foreach($issues as $issueName) {
+                        foreach ($issues as $issueName) {
                             $issue->issueKeys[] = $issueName;
                         }
                         $annotations[get_class($issue)] = $issue;
                     } else {
-                        Debug::debug("Tag not detected: ".$output[1]);
+                        Debug::debug("Tag not detected: " . $output[1]);
                     }
                 }
             }
