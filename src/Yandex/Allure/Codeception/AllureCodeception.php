@@ -303,10 +303,16 @@ class AllureCodeception extends Extension
         if ($example) {
             @$exampleTitle = $example['wantTo'] ?: $example['setting']['description'];
             $title = $exampleTitle ?: $title;
+            @$exampleDescription = $example['description'] ?: $example['setting']['long_description'];
+            $description = $exampleDescription ?: false;
         }
 
         $event = new TestCaseStartedEvent($this->uuid, $testName);
         $event->setTitle($title);
+        if ($description) {
+            $description = $description !== strip_tags($description) ? $description : nl2br($description);
+            $event->setDescription(new Model\Description('html', $description));
+        }
         if ($test instanceof Cest) {
             $methodName = $test->getName();
             $className = get_class($test->getTestClass());
