@@ -309,7 +309,7 @@ class AllureCodeception extends Extension
 
         $event = new TestCaseStartedEvent($this->uuid, $testName);
         $event->setTitle($title);
-        if ($description) {
+        if (isset($description) && $description) {
             $description = $description !== strip_tags($description) ? $description : nl2br($description);
             $event->setDescription(new Model\Description('html', $description));
         }
