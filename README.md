@@ -32,6 +32,7 @@ extensions:
                 - env
                 - dataprovider
             enabledAttach:
+                - PhpBrowserLog
                 - stepScreenshot
                 - stepBrowserLog # Not work in firefox, phpbrowser
                 - failedStepPageSource
