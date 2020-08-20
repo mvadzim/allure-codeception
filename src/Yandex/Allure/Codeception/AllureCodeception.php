@@ -444,14 +444,6 @@ class AllureCodeception extends Extension
 
     public function testEnd(TestEvent $testEvent)
     {
-        // attachments supported since Codeception 3.0
-        if (version_compare(Codecept::VERSION, '3.0.0') > -1 && $testEvent->getTest() instanceof Cest) {
-            $artifacts = $testEvent->getTest()->getMetadata()->getReports();
-            $testCaseStorage = $this->getLifecycle()->getTestCaseStorage()->get();
-            foreach ($artifacts as $name => $artifact) {
-                $testCaseStorage->addAttachment(new Attachment($name, $artifact, null));
-            }
-        }
         if ($this->lastRootStep) {
             $this->getLifecycle()->fire(new StepFinishedEvent());
             $this->lastRootStep = null;
@@ -514,7 +506,7 @@ class AllureCodeception extends Extension
                 }
             }
         }
-        if ($this->hasModule('PhpBrowser') && !is_null($this->module->client) && !$this->module->client->getHistory()->isEmpty()) {
+        if (in_array('PhpBrowserLog', $this->enabledAttach) && $this->hasModule('PhpBrowser') && !is_null($this->module->client) && !$this->module->client->getHistory()->isEmpty()) {
             @$requestObject = $this->module->client->getRequest();
             @$responseObject = $this->module->client->getResponse();
             $lastInnerBrowserResponse = ['requestObject' => $requestObject, 'responseObject' => $responseObject];
