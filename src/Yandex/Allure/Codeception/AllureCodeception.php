@@ -93,7 +93,7 @@ class AllureCodeception extends Extension
         'coversDefaultClass', 'coversNothing', 'dataProvider', 'depends', 'expectedException',
         'expectedExceptionCode', 'expectedExceptionMessage', 'group', 'large', 'medium',
         'preserveGlobalState', 'requires', 'runTestsInSeparateProcesses', 'runInSeparateProcess',
-        'small', 'test', 'testdox', 'ticket', 'uses'
+        'small', 'test', 'testdox', 'ticket', 'uses', 'env'
     ];
 
     private $test;
@@ -486,7 +486,7 @@ class AllureCodeception extends Extension
             in_array('stepScreenshot', $this->enabledAttach) &&
             $this->hasModule('WebDriver') &&
             !$step instanceof CommentStep &&
-            !$this->isStepIgnored($step)
+            !$this->isNeedSkipScreenshotForStep($step)
         ) {
             $screenshotPath = $this->getOutputDirectory() . DIRECTORY_SEPARATOR . $this->testName . 'step' . $this->stepNumber . '-' . rand(1, 9999) . '.png';
             $this->module->_saveScreenshot($screenshotPath);
@@ -507,8 +507,8 @@ class AllureCodeception extends Extension
             }
         }
         if (in_array('PhpBrowserLog', $this->enabledAttach) && $this->hasModule('PhpBrowser') && !is_null($this->module->client) && !$this->module->client->getHistory()->isEmpty()) {
-            @$requestObject = $this->module->client->getRequest();
-            @$responseObject = $this->module->client->getResponse();
+            $requestObject = @$this->module->client->getRequest();
+            $responseObject = @$this->module->client->getResponse();
             $lastInnerBrowserResponse = ['requestObject' => $requestObject, 'responseObject' => $responseObject];
             if ($requestObject && $responseObject && $lastInnerBrowserResponse !== $this->previousInnerBrowserResponse) {
                 $this->previousInnerBrowserResponse = $lastInnerBrowserResponse;
@@ -677,9 +677,9 @@ class AllureCodeception extends Extension
      *
      * @return bool
      */
-    protected function isStepIgnored($step)
+    protected function isNeedSkipScreenshotForStep($step)
     {
-        foreach ($this->tryGetOption(STEP_SCREENSHOT_IGNORED_PARAMETER, []) as $stepPattern) {
+        foreach ($this->tryGetOption(STEP_SCREENSHOT_IGNORED_PARAMETER, ['grab*', '*cookie', '*api*']) as $stepPattern) {
             $stepRegexp = '/^' . str_replace('*', '.*?', $stepPattern) . '$/i';
             if (preg_match($stepRegexp, $step->getAction())) {
                 return true;
@@ -719,8 +719,7 @@ class AllureCodeception extends Extension
     protected function formatBrowserLog(array $log)
     {
         if (!empty($log) && array_key_exists('message', $log[0])) {
-            $formatLog = '<ul><li>' . implode("<br/><li>", array_column($log, 'message')) . '</ul>';
-            return $formatLog;
+            return '<ul><li>' . implode("<br/><li>", array_column($log, 'message')) . '</ul>';
         } else {
             return false;
         }
